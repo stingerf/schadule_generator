@@ -15,21 +15,25 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController durationController = TextEditingController();
   DateTime? deadline;
   String? priority;
+  String? category;
   bool isLoading = false;
+  bool isDarkMode = false;
 
   void _addTask() {
     if (taskController.text.isNotEmpty &&
         durationController.text.isNotEmpty &&
-        priority != null) {
+        priority != null &&
+        category != null) {
       setState(() {
         tasks.add({
           "name": taskController.text,
           "priority": priority!,
+          "category": category!,
           "duration": int.tryParse(durationController.text) ?? 30,
           "deadline": deadline != null
               ? "${deadline!.day}/${deadline!.month}/${deadline!.year}"
               : "Tidak Ada",
-          "completed": false, // Menambahkan status selesai
+          "completed": false,
         });
       });
       taskController.clear();
@@ -45,10 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
         title: Text("Hapus Semua Tugas?"),
         content: Text("Tindakan ini tidak bisa dibatalkan."),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text("Batal"),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text("Batal")),
           TextButton(
             onPressed: () {
               setState(() => tasks.clear());
@@ -61,15 +62,51 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _editTask(int index) {
+    taskController.text = tasks[index]["name"];
+    durationController.text = tasks[index]["duration"].toString();
+    priority = tasks[index]["priority"];
+    category = tasks[index]["category"];
+    deadline = null;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Edit Tugas"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: taskController, decoration: InputDecoration(labelText: "Nama Tugas")),
+            TextField(controller: durationController, decoration: InputDecoration(labelText: "Durasi"), keyboardType: TextInputType.number),
+            DropdownButton<String>(
+              value: priority,
+              hint: Text("Pilih Prioritas"),
+              onChanged: (value) => setState(() => priority = value),
+              items: ["Tinggi", "Sedang", "Rendah"].map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text("Batal")),
+          TextButton(
+            onPressed: () {
+              setState(() {
+                tasks[index]["name"] = taskController.text;
+                tasks[index]["duration"] = int.tryParse(durationController.text) ?? 30;
+                tasks[index]["priority"] = priority!;
+              });
+              Navigator.pop(context);
+            },
+            child: Text("Simpan"),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _toggleTaskCompletion(int index) {
     setState(() {
       tasks[index]["completed"] = !tasks[index]["completed"];
-    });
-  }
-
-  void _deleteTask(int index) {
-    setState(() {
-      tasks.removeAt(index);
     });
   }
 
@@ -86,6 +123,10 @@ class _HomeScreenState extends State<HomeScreen> {
         deadline = pickedDate;
       });
     }
+  }
+
+  int _calculateTotalDuration() {
+    return tasks.fold(0, (sum, task) => sum + (task["duration"] as int));
   }
 
   Future<void> _generateSchedule() async {
@@ -120,154 +161,65 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.brown[100],
-      appBar: AppBar(
-        title: Text(
-          "Buku To-Do List",
-          style: TextStyle(fontFamily: 'IndieFlower', fontSize: 24),
-        ),
-        backgroundColor: Colors.brown[300],
-        elevation: 0,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // Input Form
-            Container(
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 5,
-                    offset: Offset(2, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  TextField(
-                    controller: taskController,
-                    decoration: InputDecoration(
-                      labelText: "Nama Tugas",
-                      border: InputBorder.none,
-                    ),
-                  ),
-                  Divider(),
-                  TextField(
-                    controller: durationController,
-                    decoration: InputDecoration(
-                      labelText: "Durasi (menit)",
-                      border: InputBorder.none,
-                    ),
-                    keyboardType: TextInputType.number,
-                  ),
-                  Divider(),
-                  DropdownButton<String>(
-                    value: priority,
-                    hint: Text("Pilih Prioritas"),
-                    onChanged: (value) => setState(() => priority = value),
-                    items: ["Tinggi", "Sedang", "Rendah"]
-                        .map((priorityMember) => DropdownMenuItem(
-                            value: priorityMember, child: Text(priorityMember)))
-                        .toList(),
-                  ),
-                  Divider(),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(deadline == null
-                          ? "Deadline: Tidak Ada"
-                          : "Deadline: ${deadline!.day}/${deadline!.month}/${deadline!.year}"),
-                      TextButton(
-                        onPressed: _selectDeadline,
-                        child: Text("Pilih Deadline"),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      ElevatedButton(
-                        onPressed: _addTask,
-                        child: Text("Tambahkan"),
-                      ),
-                      ElevatedButton(
-                        onPressed: _clearTasks,
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red),
-                        child:
-                            Text("Hapus Semua", style: TextStyle(color: Colors.white)),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: isDarkMode ? ThemeData.dark() : ThemeData.light(),
+      home: Scaffold(
+        appBar: AppBar(
+          title: Text("Buku To-Do List"),
+          actions: [
+            IconButton(
+              icon: Icon(isDarkMode ? Icons.wb_sunny : Icons.nights_stay),
+              onPressed: () => setState(() => isDarkMode = !isDarkMode),
             ),
-            SizedBox(height: 20),
-            // Task List
-            Expanded(
-              child: tasks.isEmpty
-                  ? Center(child: Text("Belum ada tugas, tambahkan yuk!"))
-                  : ListView.builder(
-                      itemCount: tasks.length,
-                      itemBuilder: (context, index) {
-                        final task = tasks[index];
-                        return Card(
-                          color: task["completed"]
-                              ? Colors.green[100]
-                              : Colors.white,
-                          margin: EdgeInsets.symmetric(vertical: 6),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          elevation: 3,
-                          child: ListTile(
-                            leading: IconButton(
-                              icon: Icon(
-                                task["completed"]
-                                    ? Icons.check_box
-                                    : Icons.check_box_outline_blank,
-                                color: task["completed"]
-                                    ? Colors.green
-                                    : Colors.grey,
-                              ),
-                              onPressed: () => _toggleTaskCompletion(index),
-                            ),
-                            title: Text("${task['name']}"),
-                            subtitle: Text(
-                                "Prioritas: ${task['priority']} | Durasi: ${task['duration']} menit\nDeadline: ${task['deadline']}"),
-                            trailing: IconButton(
-                              icon: Icon(Icons.delete, color: Colors.red),
-                              onPressed: () => _deleteTask(index),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-            ),
-            SizedBox(height: 10),
-            // Generate Schedule Button
-            isLoading
-                ? CircularProgressIndicator()
-                : ElevatedButton(
-                    onPressed: _generateSchedule,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.brown[400],
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    ),
-                    child: const Text(
-                      "Sarankan jadwal dari Gemini ✨",
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
           ],
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              // Input Form
+              TextField(controller: taskController, decoration: InputDecoration(labelText: "Nama Tugas")),
+              TextField(controller: durationController, decoration: InputDecoration(labelText: "Durasi (menit)"), keyboardType: TextInputType.number),
+              DropdownButton<String>(
+                value: priority,
+                hint: Text("Pilih Prioritas"),
+                onChanged: (value) => setState(() => priority = value),
+                items: ["Tinggi", "Sedang", "Rendah", "Waktu Kosong"].map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
+              ),
+              const SizedBox(height: 20,),
+              DropdownButton<String>(
+                value: category,
+                hint: Text("Pilih Kategori"),
+                onChanged: (value) => setState(() => category = value),
+                items: ["Pekerjaan", "Pribadi", "Pendidikan"].map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+              ),
+              const SizedBox(height: 20),
+              Text("Total Durasi: ${_calculateTotalDuration()} menit"),
+              const SizedBox(height: 20,),
+              ElevatedButton(onPressed: _addTask, child: Text("Tambahkan")),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: tasks.length,
+                  itemBuilder: (context, index) {
+                    final task = tasks[index];
+                    return ListTile(
+                      title: Text("${task['name']}"),
+                      subtitle: Text("Prioritas: ${task['priority']} | Durasi: ${task['duration']} menit"),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(icon: Icon(Icons.edit), onPressed: () => _editTask(index)),
+                          IconButton(icon: Icon(Icons.delete, color: Colors.red), onPressed: () => _clearTasks()),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              isLoading ? CircularProgressIndicator() : ElevatedButton(onPressed: _generateSchedule, child: Text("Generate Schedule")),
+            ],
+          ),
         ),
       ),
     );
